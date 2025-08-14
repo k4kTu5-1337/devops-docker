@@ -10,24 +10,28 @@ permissions:
 
 jobs:
   build-and-push:
-    runs-on: ubuntu-latest   # сборка происходит на GitHub runner
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Log in to GitHub Container Registry
-        run: echo "${{ secrets.CR_PAT }}" | docker login ghcr.io -u k4ktus-1337 --password-stdin
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.CR_PAT }} # вставь сюда PAT с правами write:packages
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
-          tags: ghcr.io/k4ktus-1337/devops-docker:latest
+          tags: ghcr.io/k4ktu5-1337/devops-docker:latest # обязательно lowercase
 
   deploy:
     needs: build-and-push
-    runs-on: self-hosted  # <- твой runner на CentOS VM
+    runs-on: ubuntu-latest
     steps:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
@@ -49,9 +53,9 @@ jobs:
               git pull origin main || true
             fi
 
-            # Логин в GHCR на VM (для приватного образа)
-            echo "${{ secrets.CR_PAT }}" | docker login ghcr.io -u k4ktus-1337 --password-stdin
+            # Логин в GHCR, если образ приватный
+            echo "${{ secrets.CR_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-            docker pull ghcr.io/k4ktus-1337/devops-docker:latest || true
+            docker pull ghcr.io/k4ktu5-1337/devops-docker:latest || true
             docker compose down || true
             docker compose up -d --build --remove-orphans
