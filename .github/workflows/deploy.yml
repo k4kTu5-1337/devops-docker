@@ -56,8 +56,8 @@ jobs:
               git pull origin main || true
             fi
 
-            # Если образ приватный, раскомментируйте и добавьте CR_PAT в Secrets
-            # echo "${{ secrets.CR_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            # Логин в GHCR (для приватного образа)
+            echo "${{ secrets.CR_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
             docker pull ghcr.io/k4ktus-1337/devops-docker:latest || true
             docker compose down || true
