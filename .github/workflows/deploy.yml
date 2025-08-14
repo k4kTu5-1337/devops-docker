@@ -22,12 +22,13 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push
+      - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
-          tags: ghcr.io/${{ github.repository }}:latest
+          # Приведено к нижнему регистру вручную
+          tags: ghcr.io/k4ktus-1337/devops-docker:latest
 
   deploy:
     needs: build-and-push
@@ -48,15 +49,16 @@ jobs:
             cd ${{ secrets.REPO_DIR }} || exit 1
 
             if [ ! -d ".git" ]; then
-              # Первичное клонирование, если репозиторий ещё не клонирован
+              # Первичное клонирование
               git clone https://github.com/${{ github.repository }} .
             else
+              git reset --hard
               git pull origin main || true
             fi
 
-            # (Если образ приватный, раскомментируйте login и добавьте CR_PAT в секреты)
+            # Если образ приватный, раскомментируйте и добавьте CR_PAT в Secrets
             # echo "${{ secrets.CR_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-            docker pull ghcr.io/${{ github.repository }}:latest || true
+            docker pull ghcr.io/k4ktus-1337/devops-docker:latest || true
             docker compose down || true
-            docker compose up -d --remove-orphans
+            docker compose up -d --build --remove-orphans
