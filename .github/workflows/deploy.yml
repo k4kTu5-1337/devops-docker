@@ -19,7 +19,7 @@ jobs:
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
-          username: k4kTu5-1337                # твой реальный логин
+          username: k4kTu5-1337                # твой реальный GitHub логин
           password: ${{ secrets.CR_PAT }}     # Personal Access Token с правами write:packages
 
       - name: Build and push Docker image
@@ -27,7 +27,7 @@ jobs:
         with:
           context: .
           push: true
-          tags: ghcr.io/k4ktus-1337/devops-docker:latest  # тег должен быть lowercase
+          tags: ghcr.io/k4ktus-1337/devops-docker:latest  # тег строго lowercase
 
   deploy:
     needs: build-and-push
