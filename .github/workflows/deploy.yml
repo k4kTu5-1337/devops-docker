@@ -19,16 +19,15 @@ jobs:
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          username: k4kTu5-1337                # твой реальный логин
+          password: ${{ secrets.CR_PAT }}     # Personal Access Token с правами write:packages
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
-          # Приведено к нижнему регистру вручную
-          tags: ghcr.io/k4ktus-1337/devops-docker:latest
+          tags: ghcr.io/k4ktus-1337/devops-docker:latest  # тег должен быть lowercase
 
   deploy:
     needs: build-and-push
@@ -44,21 +43,25 @@ jobs:
           script_stop: true
           script: |
             set -e
-            # Подготовка каталога
+
+            # Переходим в каталог проекта
             mkdir -p ${{ secrets.REPO_DIR }} || true
             cd ${{ secrets.REPO_DIR }} || exit 1
 
+            # Клонируем или обновляем репозиторий
             if [ ! -d ".git" ]; then
-              # Первичное клонирование
               git clone https://github.com/${{ github.repository }} .
             else
               git reset --hard
               git pull origin main || true
             fi
 
-            # Логин в GHCR (для приватного образа)
-            echo "${{ secrets.CR_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            # Логин в GHCR для приватного образа
+            echo "${{ secrets.CR_PAT }}" | docker login ghcr.io -u k4kTu5-1337 --password-stdin
 
+            # Подтягиваем последний образ
             docker pull ghcr.io/k4ktus-1337/devops-docker:latest || true
+
+            # Останавливаем и перезапускаем контейнеры
             docker compose down || true
             docker compose up -d --build --remove-orphans
