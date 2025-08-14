@@ -1,30 +1,33 @@
 # DevOps Docker Blog
 
-Простой блог-сервер на Python/FastAPI с PostgreSQL, работающий в Docker.
+Простой блог-сервер на Python/FastAPI с поддержкой Docker и PostgreSQL.
 
 ## Структура проекта
 
 ```
 .
-├── app/                  # исходники приложения
-├── logs/                 # точка монтирования для логов
+├── app/ # исходники приложения
+├── logs/ # монтирование для логов
 ├── Dockerfile
 ├── docker-compose.yml
 └── README.md
 ```
 
-## Локальный запуск
-
-1. Установите Docker и Docker Compose на вашей машине или ВМ.
-2. Запустите командой:
+## Как собрать и запустить проект локально
 
 ```bash
+# Перейти в директорию проекта
+cd /opt/blog/devops-docker
+
+# Поднять контейнеры приложения и БД
 docker compose up -d --build
 ```
 
-3. Приложение будет доступно на `http://localhost:8080`.
+Приложение доступно на http://localhost:8080.
 
-Логи сохраняются в папку `logs/`, данные PostgreSQL сохраняются в volume.
+Логи приложения и PostgreSQL сохраняются в папку ./logs.
+
+Данные PostgreSQL сохраняются между перезапусками контейнеров через volume.
 
 ## API
 
@@ -34,7 +37,7 @@ docker compose up -d --build
 
 ```json
 [
-  { "id": 1, "title": "Hello", "content": "World" }
+  { "id": 1, "title": "Hello world", "content": "My first post!" }
 ]
 ```
 
@@ -63,40 +66,83 @@ docker compose up -d --build
 
 ## Технологии
 
-- Python 3.11
-- FastAPI
-- Docker & Docker Compose
+- Python / FastAPI
 - PostgreSQL
+- Docker, docker-compose
 - GitHub Actions (CI/CD)
-- Self-hosted GitHub Runner
+- Self-hosted runner на CentOS
 
-## Автоматический деплой
+## Проверка работоспособности (smoke-test)
 
-В репозитории настроен self-hosted runner на вашей ВМ (CentOS).
+- Перейти на http://localhost:8080.
+- Выполнить GET /posts — должен вернуть текущий список постов.
+- Выполнить POST /posts с JSON — должен добавить новый пост.
+- Проверить, что новые данные сохранились после перезапуска контейнера.
 
-### Настройка секретов GitHub:
+## CI/CD и деплой
 
-- `SSH_PRIVATE_KEY` — приватный ключ для подключения к ВМ
-- `SERVER_USER` — пользователь на ВМ (например, `test`)
-- `SERVER_HOST` — IP ВМ (например, `192.168.x.x`)
-- `SERVER_PORT` — порт SSH (если отличается от 22)
-- `REPO_DIR` — директория, куда будет деплой (например, `/opt/blog/devops-docker`)
-- `CR_PAT` — (опционально) токен для приватного GHCR, если образ приватный
+### Что было изначально (SSH workflow)
 
-### Workflow GitHub Actions
+Планировалось автоматическое развертывание через GitHub Actions по SSH.
 
-- Сборка Docker-образа и пуш в GHCR при `push` в ветку `main`.
-- Деплой на self-hosted runner выполняется на той же ВМ, где запущен контейнер.
+**Проблема:** при использовании NAT и проброса портов на VM GitHub Actions не смог подключиться (i/o timeout), потому что внешнее соединение на IP хоста с порта 22/2222 не работало.
 
-**Важно:** Ранее, при использовании workflow с удалённым SSH (через NAT и внешний IP), деплой не выполнялся корректно (i/o timeout). Использование self-hosted runner устраняет проблему, так как деплой происходит локально на ВМ.
+Поэтому условия задания с SSH-деплоем не были выполнены.
 
-### Проверка
+### Как сделано сейчас (self-hosted runner)
 
-1. Локально через `docker compose up`.
-2. Через браузер или `curl` на `http://<VM_IP>:8080/posts`.
-3. Логи приложения и базы находятся в `logs/`.
+- На VM установлен self-hosted runner.
+- Workflow запускается прямо на VM.
+- Сборка Docker-образа и деплой выполняются локально.
+- Нет необходимости указывать SSH_PRIVATE_KEY, SERVER_HOST, SERVER_USER и порт.
+- Условия задания, связанные с push в main → автоматическим деплоем на сервере, выполнены через локальный runner.
 
----
+### Настройка GitHub Actions для self-hosted runner
 
-**Примечание:** Self-hosted runner работает под пользователем, у которого есть доступ к Docker сокету, иначе требуется добавить пользователя в `docker` группу или использовать sudo.
+1. Установить runner на VM:
+
+```bash
+mkdir actions-runner && cd actions-runner
+# Скопировать команду config.sh с GitHub репозитория → вставить и выполнить
+./config.sh --url https://github.com/k4kTu5-1337/devops-docker --token <TOKEN>
+```
+
+2. Запустить runner:
+
+```bash
+./run.sh
+```
+
+### Workflow .github/workflows/build-and-deploy.yml
+
+```yaml
+name: Build & Deploy Local
+on:
+  push:
+    branches: [ main ]
+jobs:
+  build-and-deploy:
+    runs-on: self-hosted
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          tags: devops-docker:latest
+
+      - name: Deploy with docker-compose
+        run: |
+          cd /opt/blog/devops-docker
+          docker compose down || true
+          docker compose up -d --build --remove-orphans
+```
+
+Workflow автоматически запускается при push в main.
+Деплой происходит на той же VM, где установлен self-hosted runner.
+
+Таким образом, все шаги CI/CD выполняются локально и корректно, хотя первоначальная идея с SSH и NAT не сработала.
 
