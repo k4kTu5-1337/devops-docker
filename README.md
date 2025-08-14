@@ -1,63 +1,102 @@
-# FastAPI minimal blog (Docker + PostgreSQL)
+# DevOps Docker Blog
 
-Простейший API блога с двумя эндпоинтами:
-- `GET /posts` — список публикаций
-- `POST /posts` — создание публикации
+Простой блог-сервер на Python/FastAPI с PostgreSQL, работающий в Docker.
 
-Данные хранятся в PostgreSQL. Логи приложения и БД пишутся в `./logs` на хосте.
+## Структура проекта
 
-## Быстрый старт (локально/на сервере)
+```
+.
+├── app/                  # исходники приложения
+├── logs/                 # точка монтирования для логов
+├── Dockerfile
+├── docker-compose.yml
+└── README.md
+```
+
+## Локальный запуск
+
+1. Установите Docker и Docker Compose на вашей машине или ВМ.
+2. Запустите командой:
+
 ```bash
-mkdir -p logs
 docker compose up -d --build
-curl -s http://localhost:8080/posts
-curl -s -X POST http://localhost:8080/posts -H "Content-Type: application/json" -d '{"title":"Hello","content":"World"}'
-curl -s http://localhost:8080/posts
 ```
 
-### Требования
-- Docker Engine + Docker Compose v2
-- Открыт порт 8080 (firewalld)
-- На CentOS/SELinux: bind-mount с меткой `:Z` уже настроен в `docker-compose.yml`
+3. Приложение будет доступно на `http://localhost:8080`.
 
-## Структура
-```
-app/
-  database.py
-  models.py
-  schemas.py
-  main.py
-logs/                # точка монтирования логов
-Dockerfile
-docker-compose.yml
-requirements.txt
-.github/workflows/deploy.yml
-```
+Логи сохраняются в папку `logs/`, данные PostgreSQL сохраняются в volume.
 
 ## API
-**GET /posts** → `200 OK`
+
+### GET /posts
+
+Возвращает список публикаций:
+
 ```json
-[]
+[
+  { "id": 1, "title": "Hello", "content": "World" }
+]
 ```
 
-**POST /posts**
-Request:
+### POST /posts
+
+Добавляет новую публикацию:
+
+**Request:**
+
 ```json
-{"title":"Hello","content":"World"}
+{
+  "title": "Another post",
+  "content": "Some content here"
+}
 ```
-Response:
+
+**Response:**
+
 ```json
-{"id":1,"title":"Hello","content":"World"}
+{
+  "id": 2,
+  "title": "Another post",
+  "content": "Some content here"
+}
 ```
 
-## CI/CD (GitHub Actions)
-Workflow собирает образ и деплоит по SSH на сервер (где уже есть этот репозиторий).
+## Технологии
 
-Необходимые секреты (Repository → Settings → Secrets and variables → Actions):
-- `SSH_PRIVATE_KEY`
-- `SERVER_HOST`
-- `SERVER_USER`
-- `SERVER_PORT` (опционально, по умолчанию 22)
-- `REPO_DIR` (например, `/opt/blog`)
+- Python 3.11
+- FastAPI
+- Docker & Docker Compose
+- PostgreSQL
+- GitHub Actions (CI/CD)
+- Self-hosted GitHub Runner
 
-> Образ публикуется в GHCR как `ghcr.io/<owner>/<repo>:latest`. Сделайте пакет Public **или** добавьте шаг логина в GHCR (см. комментарии в workflow).
+## Автоматический деплой
+
+В репозитории настроен self-hosted runner на вашей ВМ (CentOS).
+
+### Настройка секретов GitHub:
+
+- `SSH_PRIVATE_KEY` — приватный ключ для подключения к ВМ
+- `SERVER_USER` — пользователь на ВМ (например, `test`)
+- `SERVER_HOST` — IP ВМ (например, `192.168.x.x`)
+- `SERVER_PORT` — порт SSH (если отличается от 22)
+- `REPO_DIR` — директория, куда будет деплой (например, `/opt/blog/devops-docker`)
+- `CR_PAT` — (опционально) токен для приватного GHCR, если образ приватный
+
+### Workflow GitHub Actions
+
+- Сборка Docker-образа и пуш в GHCR при `push` в ветку `main`.
+- Деплой на self-hosted runner выполняется на той же ВМ, где запущен контейнер.
+
+**Важно:** Ранее, при использовании workflow с удалённым SSH (через NAT и внешний IP), деплой не выполнялся корректно (i/o timeout). Использование self-hosted runner устраняет проблему, так как деплой происходит локально на ВМ.
+
+### Проверка
+
+1. Локально через `docker compose up`.
+2. Через браузер или `curl` на `http://<VM_IP>:8080/posts`.
+3. Логи приложения и базы находятся в `logs/`.
+
+---
+
+**Примечание:** Self-hosted runner работает под пользователем, у которого есть доступ к Docker сокету, иначе требуется добавить пользователя в `docker` группу или использовать sudo.
+
