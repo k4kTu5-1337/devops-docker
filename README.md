@@ -1,6 +1,6 @@
-# DevOps Docker Blog
+# DevOps Docker
 
-Простой блог-сервер на Python/FastAPI с поддержкой Docker и PostgreSQL.
+блог-сервер на Python/FastAPI с поддержкой Docker и PostgreSQL.
 
 ## Структура проекта
 
