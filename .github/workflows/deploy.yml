@@ -10,28 +10,24 @@ permissions:
 
 jobs:
   build-and-push:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest   # сборка происходит на GitHub runner
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "${{ secrets.CR_PAT }}" | docker login ghcr.io -u k4ktus-1337 --password-stdin
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
-          tags: ghcr.io/k4ktus-1337/devops-docker:latest  # логин в нижнем регистре
+          tags: ghcr.io/k4ktus-1337/devops-docker:latest
 
   deploy:
     needs: build-and-push
-    runs-on: ubuntu-latest
+    runs-on: self-hosted  # <- твой runner на CentOS VM
     steps:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
@@ -39,7 +35,7 @@ jobs:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SERVER_PORT }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
           script_stop: true
           script: |
             set -e
@@ -53,8 +49,9 @@ jobs:
               git pull origin main || true
             fi
 
-            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            # Логин в GHCR на VM (для приватного образа)
+            echo "${{ secrets.CR_PAT }}" | docker login ghcr.io -u k4ktus-1337 --password-stdin
+
             docker pull ghcr.io/k4ktus-1337/devops-docker:latest || true
             docker compose down || true
             docker compose up -d --build --remove-orphans
-
